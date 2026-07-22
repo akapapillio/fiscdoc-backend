@@ -13,6 +13,7 @@ import { ApiKeyGuard } from 'src/common/guards/api-key.guard';
 export class AppController {
   constructor(@Inject('DATABASE_CONNECTION') private readonly db: mysql.Pool) {}
 
+  @UseGuards(ApiKeyGuard)
   @Get('api-status')
   async checkStatus() {
     try {
