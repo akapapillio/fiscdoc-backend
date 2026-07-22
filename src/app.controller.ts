@@ -1,10 +1,19 @@
-import { Controller, Get, Inject, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Get, Inject, InternalServerErrorException ,   Body,
+  BadRequestException,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+  ValidationPipe } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
+import { ApiKeyGuard } from 'src/common/guards/api-key.guard';
 
 @Controller()
 export class AppController {
   constructor(@Inject('DATABASE_CONNECTION') private readonly db: mysql.Pool) {}
 
+  @UseGuards(ApiKeyGuard)
   @Get('api-status')
   async checkStatus() {
     try {
