@@ -29,24 +29,24 @@ Feuille de route pour le développement de l'API réglementaire et de l'assistan
 # Phase 2 : Authentification & Sécurité par Clé d'API
 ## Objectif : Sécuriser les routes de l'API via des en-têtes HTTP (x-api-key / x-api-secret).
 - [x] Préparer la table api_keys dans MariaDB
-- [ ] Créer le dossier src/common/guards/
-- [ ] Implémenter api-key.guard.ts :
-    - [ ] Intercepter les headers x-api-key et x-api-secret
-    - [ ] Exécuter la requête SQL de vérification (is_active = 1, expiration) via un service
-    - [ ] Lever une exception 401 Unauthorized si la clé est invalide
-- [ ] Appliquer le Guard sur les routes sensibles (sera fait dans les prochaines phases)
+- [x] Créer le dossier src/common/guards/
+- [x] Implémenter api-key.guard.ts :
+    - [x] Intercepter les headers x-api-key et x-api-secret
+    - [x] Exécuter la requête SQL de vérification (is_active = 1, expiration) via un service
+    - [x] Lever une exception 401 Unauthorized si la clé est invalide
+- [x] Appliquer le Guard sur les routes sensibles (sera fait dans les prochaines phases)
 ## Tâches Additionnelles : Gestion des Clés d'API
 ## Objectif : Permettre à un administrateur de créer et gérer le cycle de vie des clés.
 
-- [ ] **Création d'une clé d'API :**
-    - [ ] Créer le `api-keys.controller.ts` pour exposer les endpoints de gestion.
-    - [ ] Créer un DTO (Data Transfer Object) `create-api-key.dto.ts` pour valider les données d'entrée (ex: `name`, `userId`).
-    - [ ] Implémenter la méthode `createApiKey` dans `api-keys.service.ts` (génération `publicKey`, `secret`, hachage et `INSERT` SQL).
-    - [ ] Créer la route `POST /api-keys` qui retourne la clé publique et le secret *une seule fois*.
+- [x] **Création d'une clé d'API :**
+    - [x] Créer le `api-keys.controller.ts` pour exposer les endpoints de gestion.
+    - [x] Créer un DTO (Data Transfer Object) `create-api-key.dto.ts` pour valider les données d'entrée (ex: `name`, `userId`).
+    - [x] Implémenter la méthode `createApiKey` dans `api-keys.service.ts` (génération `publicKey`, `secret`, hachage et `INSERT` SQL).
+    - [x] Créer la route `POST /api-keys` qui retourne la clé publique et le secret *une seule fois*.
 
-- [ ] **Suspension / Révocation d'une clé :**
-    - [ ] Implémenter une méthode `updateApiKeyStatus` dans `api-keys.service.ts` (requête `UPDATE` pour modifier `is_active`).
-    - [ ] Créer les routes `PATCH /api-keys/:id/suspend` et `PATCH /api-keys/:id/reactivate`.
+- [x] **Suspension / Révocation d'une clé :**
+    - [x] Implémenter une méthode `updateApiKeyStatus` dans `api-keys.service.ts` (requête `UPDATE` pour modifier `is_active`).
+    - [x] Créer les routes `PATCH /api-keys/:id/suspend` et `PATCH /api-keys/:id/reactivate`.
 
 # Phase 3 : Module Catégories (Gestion Hiérarchique)
 ## Objectif : Gérer l'arborescence des domaines (ex: sigFP ➔ Régies d'avances).
