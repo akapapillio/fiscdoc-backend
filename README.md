@@ -11,7 +11,7 @@ Ce dépôt contient le code source du backend (API) du projet FiscDoc.
 
 - **Framework :** [NestJS](https://nestjs.com/) (Node.js)
 - **Langage :** [TypeScript](https://www.typescriptlang.org/) (100% typé)
-- **Base de données :** [PostgreSQL](https://www.postgresql.org/)
+- **Base de données :** [Mysql]
 - **ORM :** [Prisma ORM](https://www.prisma.io/)
 - **IA / Chatbot :** Vercel AI SDK & Google Gemini / OpenAI (RAG)
 
