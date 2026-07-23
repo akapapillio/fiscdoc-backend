@@ -15,7 +15,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
     DatabaseModule,
     // 3. Importe le module de gestion des clés d'API
     ApiKeysModule,
-    // CategoriesModule, // On commente cette ligne car la Phase 3 n'est pas encore faite
+    CategoriesModule,
   ],
   controllers: [AppController], // <-- C'est ICI qu'il fallait l'ajouter pour exposer l'endpoint !
 })

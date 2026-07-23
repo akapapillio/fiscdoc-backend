@@ -64,3 +64,32 @@ Feuille de route pour le développement de l'API réglementaire et de l'assistan
 - [ ] create() : Insertion SQL avec gestion des liens parents
 
 - [ ] Implémenter categories.controller.ts (GET /categories, POST /categories)
+
+
+# Phase 4 : Module Documents (Contenu HTML & Ingestion IA)
+## Objectif : Recevoir, stocker et servir le contenu réglementaire.
+
+- [ ] Générer le module : nest g module modules/documents
+
+- [ ] Créer les DTOs (create-document.dto.ts, update-document.dto.ts)
+
+- [ ] Implémenter documents.service.ts :
+
+- [ ] create() : Stockage des pages HTML transmises
+
+- [ ] findAll() : Recherche et filtrage par category_id ou status
+
+- [ ] findOne() : Récupération du contenu complet pour l'assistant IA
+
+- [ ] Implémenter documents.controller.ts avec validation des DTOs
+
+# Phase 5 : Journal d'Audit & Traçabilité (audit_logs)
+## Objectif : Conserver un historique inaltérable des requêtes et actions sensibles.
+
+- [ ] Générer le module : nest g module modules/audit
+
+- [ ] Implémenter audit.service.ts :
+
+- [ ] logAction(userId, action, details) : Insertion SQL dans audit_logs avec payload JSON
+
+- [ ] Intercepter les requêtes clés pour déclencher un log d'audit automatique
