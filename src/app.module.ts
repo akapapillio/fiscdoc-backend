@@ -2,7 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller'; // Bien importé !
 import { DatabaseModule } from './common/database/database.module';
-
+import { ApiKeysModule } from './modules/api-keys/api-keys.module';
+import { CategoriesModule } from './modules/categories/categories.module';
 
 @Module({
   imports: [
@@ -12,6 +13,9 @@ import { DatabaseModule } from './common/database/database.module';
     }),
     // 2. Importe le module de base de données
     DatabaseModule,
+    // 3. Importe le module de gestion des clés d'API
+    ApiKeysModule,
+    CategoriesModule,
   ],
   controllers: [AppController], // <-- C'est ICI qu'il fallait l'ajouter pour exposer l'endpoint !
 })

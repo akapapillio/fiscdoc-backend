@@ -29,38 +29,67 @@ Feuille de route pour le développement de l'API réglementaire et de l'assistan
 # Phase 2 : Authentification & Sécurité par Clé d'API
 ## Objectif : Sécuriser les routes de l'API via des en-têtes HTTP (x-api-key / x-api-secret).
 - [x] Préparer la table api_keys dans MariaDB
-- [ ] Créer le dossier src/common/guards/
-- [ ] Implémenter api-key.guard.ts :
-    - [ ] Intercepter les headers x-api-key et x-api-secret
-    - [ ] Exécuter la requête SQL de vérification (is_active = 1, expiration) via un service
-    - [ ] Lever une exception 401 Unauthorized si la clé est invalide
-- [ ] Appliquer le Guard sur les routes sensibles (sera fait dans les prochaines phases)
+- [x] Créer le dossier src/common/guards/
+- [x] Implémenter api-key.guard.ts :
+    - [x] Intercepter les headers x-api-key et x-api-secret
+    - [x] Exécuter la requête SQL de vérification (is_active = 1, expiration) via un service
+    - [x] Lever une exception 401 Unauthorized si la clé est invalide
+- [x] Appliquer le Guard sur les routes sensibles (sera fait dans les prochaines phases)
 ## Tâches Additionnelles : Gestion des Clés d'API
 ## Objectif : Permettre à un administrateur de créer et gérer le cycle de vie des clés.
 
-- [ ] **Création d'une clé d'API :**
-    - [ ] Créer le `api-keys.controller.ts` pour exposer les endpoints de gestion.
-    - [ ] Créer un DTO (Data Transfer Object) `create-api-key.dto.ts` pour valider les données d'entrée (ex: `name`, `userId`).
-    - [ ] Implémenter la méthode `createApiKey` dans `api-keys.service.ts` (génération `publicKey`, `secret`, hachage et `INSERT` SQL).
-    - [ ] Créer la route `POST /api-keys` qui retourne la clé publique et le secret *une seule fois*.
+- [x] **Création d'une clé d'API :**
+    - [x] Créer le `api-keys.controller.ts` pour exposer les endpoints de gestion.
+    - [x] Créer un DTO (Data Transfer Object) `create-api-key.dto.ts` pour valider les données d'entrée (ex: `name`, `userId`).
+    - [x] Implémenter la méthode `createApiKey` dans `api-keys.service.ts` (génération `publicKey`, `secret`, hachage et `INSERT` SQL).
+    - [x] Créer la route `POST /api-keys` qui retourne la clé publique et le secret *une seule fois*.
 
-- [ ] **Suspension / Révocation d'une clé :**
-    - [ ] Implémenter une méthode `updateApiKeyStatus` dans `api-keys.service.ts` (requête `UPDATE` pour modifier `is_active`).
-    - [ ] Créer les routes `PATCH /api-keys/:id/suspend` et `PATCH /api-keys/:id/reactivate`.
+- [x] **Suspension / Révocation d'une clé :**
+    - [x] Implémenter une méthode `updateApiKeyStatus` dans `api-keys.service.ts` (requête `UPDATE` pour modifier `is_active`).
+    - [x] Créer les routes `PATCH /api-keys/:id/suspend` et `PATCH /api-keys/:id/reactivate`.
 
 # Phase 3 : Module Catégories (Gestion Hiérarchique)
 ## Objectif : Gérer l'arborescence des domaines (ex: sigFP ➔ Régies d'avances).
 
-- [ ] Générer le module : npx nest g module modules/categories
+- [x] Générer le module : `npx nest g module modules/categories` (fait manuellement)
 
-- [ ] Créer le DTO create-category.dto.ts (code, name, parent_id, etc.)
+- [x] Créer le DTO `create-category.dto.ts` (code, name, parent_id, etc.)
 
-- [ ] Implémenter categories.service.ts :
+- [x] Implémenter `categories.service.ts` :
 
-- [ ] findAll() : Récupérer toutes les catégories
+- [x] `findAll()` : Récupérer toutes les catégories
 
-- [ ] findTree() : Reconstituer l'arbre hiérarchique avec sous-catégories
+- [x] `findTree()` : Reconstituer l'arbre hiérarchique avec sous-catégories
 
-- [ ] create() : Insertion SQL avec gestion des liens parents
+- [x] `create()` : Insertion SQL avec gestion des liens parents
 
-- [ ] Implémenter categories.controller.ts (GET /categories, POST /categories)
+- [x] Implémenter `categories.controller.ts` (GET /categories, GET /categories/tree, POST /categories)
+
+
+# Phase 4 : Module Documents (Contenu HTML & Ingestion IA)
+## Objectif : Recevoir, stocker et servir le contenu réglementaire.
+
+- [ ] Générer le module : nest g module modules/documents
+
+- [ ] Créer les DTOs (create-document.dto.ts, update-document.dto.ts)
+
+- [ ] Implémenter documents.service.ts :
+
+- [ ] create() : Stockage des pages HTML transmises
+
+- [ ] findAll() : Recherche et filtrage par category_id ou status
+
+- [ ] findOne() : Récupération du contenu complet pour l'assistant IA
+
+- [ ] Implémenter documents.controller.ts avec validation des DTOs
+
+# Phase 5 : Journal d'Audit & Traçabilité (audit_logs)
+## Objectif : Conserver un historique inaltérable des requêtes et actions sensibles.
+
+- [ ] Générer le module : nest g module modules/audit
+
+- [ ] Implémenter audit.service.ts :
+
+- [ ] logAction(userId, action, details) : Insertion SQL dans audit_logs avec payload JSON
+
+- [ ] Intercepter les requêtes clés pour déclencher un log d'audit automatique
