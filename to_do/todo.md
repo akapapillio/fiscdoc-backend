@@ -51,19 +51,19 @@ Feuille de route pour le développement de l'API réglementaire et de l'assistan
 # Phase 3 : Module Catégories (Gestion Hiérarchique)
 ## Objectif : Gérer l'arborescence des domaines (ex: sigFP ➔ Régies d'avances).
 
-- [ ] Générer le module : npx nest g module modules/categories
+- [x] Générer le module : `npx nest g module modules/categories` (fait manuellement)
 
-- [ ] Créer le DTO create-category.dto.ts (code, name, parent_id, etc.)
+- [x] Créer le DTO `create-category.dto.ts` (code, name, parent_id, etc.)
 
-- [ ] Implémenter categories.service.ts :
+- [x] Implémenter `categories.service.ts` :
 
-- [ ] findAll() : Récupérer toutes les catégories
+- [x] `findAll()` : Récupérer toutes les catégories
 
-- [ ] findTree() : Reconstituer l'arbre hiérarchique avec sous-catégories
+- [x] `findTree()` : Reconstituer l'arbre hiérarchique avec sous-catégories
 
-- [ ] create() : Insertion SQL avec gestion des liens parents
+- [x] `create()` : Insertion SQL avec gestion des liens parents
 
-- [ ] Implémenter categories.controller.ts (GET /categories, POST /categories)
+- [x] Implémenter `categories.controller.ts` (GET /categories, GET /categories/tree, POST /categories)
 
 
 # Phase 4 : Module Documents (Contenu HTML & Ingestion IA)
