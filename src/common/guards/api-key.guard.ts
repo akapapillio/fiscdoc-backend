@@ -30,6 +30,8 @@ export class ApiKeyGuard implements CanActivate {
 
     // Optionnel : attacher des informations sur la clé à la requête pour un usage ultérieur
     // (request as any).apiKey = apiKey;
+    // On attache les informations de la clé (dont l'ID utilisateur) à la requête.
+    (request as any).user = { userId: apiKey.user_id };
 
     return true;
   }
