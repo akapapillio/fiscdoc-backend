@@ -69,13 +69,13 @@ Feuille de route pour le développement de l'API réglementaire et de l'assistan
 # Phase 4 : Module Documents (Contenu HTML & Ingestion IA)
 ## Objectif : Recevoir, stocker et servir le contenu réglementaire.
 
-- [ ] Générer le module : nest g module modules/documents
+- [x] Générer le module : nest g module modules/documents
 
-- [ ] Créer les DTOs (create-document.dto.ts, update-document.dto.ts)
+- [x] Créer les DTOs (create-document.dto.ts, update-document.dto.ts)
 
-- [ ] Implémenter documents.service.ts :
+- [x] Implémenter documents.service.ts :
 
-- [ ] create() : Stockage des pages HTML transmises
+- [x] create() : Stockage des pages HTML transmises
 
 - [ ] findAll() : Recherche et filtrage par category_id ou status
 
