@@ -1,17 +1,10 @@
 import {
-  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
 } from 'class-validator';
-
-export enum DocumentStatus {
-  BROUILLON = 'BROUILLON',
-  VALIDE = 'VALIDE',
-  ARCHIVE = 'ARCHIVE',
-}
 
 export class CreateDocumentDto {
   @IsString()
