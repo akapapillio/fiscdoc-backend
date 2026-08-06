@@ -4,6 +4,7 @@ import { AppController } from './app.controller'; // Bien importé !
 import { DatabaseModule } from './common/database/database.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
     // 3. Importe le module de gestion des clés d'API
     ApiKeysModule,
     CategoriesModule,
+    DocumentsModule,
   ],
   controllers: [AppController], // <-- C'est ICI qu'il fallait l'ajouter pour exposer l'endpoint !
 })
