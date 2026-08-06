@@ -2,16 +2,19 @@ import {
   Body,
   Controller,
   Post,
+  Get,
   Req,
   UseGuards,
   ValidationPipe,
   Patch, // Import Patch
   Param, // Import Param
+  Query,
 } from '@nestjs/common';
 import { ApiKeyGuard } from 'src/common/guards/api-key.guard';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto'; // Import UpdateDocumentDto
+import { QueryDocumentDto } from './dto/query-document.dto';
 
 
 @UseGuards(ApiKeyGuard) // On protège toutes les routes de ce contrôleur
@@ -31,6 +34,24 @@ export class DocumentsController {
   ) {
     const authorId = req.user.userId; // `userId` est attaché par le ApiKeyGuard
     return this.documentsService.create(createDocumentDto, authorId);
+  }
+
+  /**
+   * Récupère une liste de documents, potentiellement filtrée.
+   * @param queryDto Les paramètres de filtrage (status, category_id).
+   */
+  @Get()
+  async findAll(@Query(new ValidationPipe({ transform: true })) queryDto: QueryDocumentDto) {
+    return this.documentsService.findAll(queryDto);
+  }
+
+  /**
+   * Récupère un document spécifique par son ID.
+   * @param id L'ID du document à récupérer.
+   */
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    return this.documentsService.findOne(id);
   }
 
   /**

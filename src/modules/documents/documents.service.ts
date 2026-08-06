@@ -1,9 +1,16 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { type Pool } from 'mysql2/promise';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { DocumentStatus } from './enums/document-status.enum';
+import { type Pool, type RowDataPacket } from 'mysql2/promise';
 import { randomUUID } from 'crypto';
 import { CreateDocumentDto } from './dto/create-document.dto';
-import { UpdateDocumentDto } from './dto/update-document.dto'; // Import UpdateDocumentDto
-import { DocumentStatus } from './enums/document-status.enum'; // Import DocumentStatus enum
+import { UpdateDocumentDto } from './dto/update-document.dto';
+import { QueryDocumentDto } from './dto/query-document.dto';
+
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -11,22 +18,72 @@ export class DocumentsService {
   constructor(@Inject('DATABASE_CONNECTION') private readonly db: Pool) {}
 
   /**
-   * Crée un nouveau document et le stocke en base de données.
-   * @param createDocumentDto Les données du document à créer.
-   * @param authorId L'ID de l'utilisateur qui crée le document (provient du guard).
+   * Crée un nouveau document en base de données.
+   * @param createDocumentDto Les données du document.
+   * @param authorId L'ID de l'auteur (récupéré depuis le token API).
+   * @returns Le document nouvellement créé.
    */
-  async create(createDocumentDto: CreateDocumentDto, authorId: string): Promise<any> {
+  async create(
+    createDocumentDto: CreateDocumentDto,
+    authorId: string,
+  ): Promise<any> {
     const id = randomUUID();
-    const { title, category_id, html_content } = createDocumentDto;
+    const document = {
+      id,
+      ...createDocumentDto,
+      status: createDocumentDto.status || DocumentStatus.BROUILLON, // Statut par défaut
+      author_id: authorId,
+    };
 
-    // Le statut par défaut est 'BROUILLON' comme dans le schéma SQL.
     await this.db.execute(
-      'INSERT INTO `documents` (id, title, category_id, html_content, author_id, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, title, category_id, html_content, authorId, 'BROUILLON'],
+      'INSERT INTO documents (id, title, category_id, html_content, status, author_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [document.id, document.title, document.category_id, document.html_content, document.status, document.author_id],
     );
 
-    this.logger.log(`Document "${title}" créé avec l'ID ${id}.`);
-    return { id, ...createDocumentDto, author_id: authorId };
+    this.logger.log(`Document créé avec l'ID : ${id}`);
+    return this.findOne(id);
+  }
+
+  /**
+   * Récupère une liste de documents, avec filtres optionnels.
+   * @param queryDto Filtres de recherche (status, category_id).
+   * @returns Une liste de documents.
+   */
+  async findAll(queryDto: QueryDocumentDto): Promise<any[]> {
+    let query = 'SELECT id, title, category_id, status, version, created_at, updated_at, author_id FROM documents WHERE 1=1';
+    const params: string[] = [];
+
+    if (queryDto.status) {
+      query += ' AND status = ?';
+      params.push(queryDto.status);
+    }
+
+    if (queryDto.category_id) {
+      query += ' AND category_id = ?';
+      params.push(queryDto.category_id);
+    }
+
+    const [rows] = await this.db.execute(query, params);
+    return rows as any[];
+  }
+
+  /**
+   * Récupère un document par son ID, avec son contenu complet.
+   * @param id L'ID du document.
+   * @returns Le document complet.
+   */
+  async findOne(id: string): Promise<any> {
+    const [rows] = await this.db.execute<RowDataPacket[]>(
+      'SELECT * FROM documents WHERE id = ?',
+      [id],
+    );
+
+    if (rows.length === 0) {
+      this.logger.warn(`Document non trouvé pour l'ID : ${id}`);
+      throw new NotFoundException(`Le document avec l'ID "${id}" n'a pas été trouvé.`);
+    }
+
+    return rows[0];
   }
 
   /**
