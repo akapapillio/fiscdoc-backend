@@ -6,6 +6,6 @@ export class QueryDocumentDto {
   status?: 'BROUILLON' | 'VALIDE' | 'ARCHIVE';
 
   @IsOptional()
-  @IsUUID()
+  @IsString()
   category_id?: string;
 }

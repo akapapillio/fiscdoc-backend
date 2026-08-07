@@ -15,6 +15,7 @@ import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto'; // Import UpdateDocumentDto
 import { QueryDocumentDto } from './dto/query-document.dto';
+import { AuditService } from '../audit/audit.service';
 
 
 @UseGuards(ApiKeyGuard) // On protège toutes les routes de ce contrôleur
