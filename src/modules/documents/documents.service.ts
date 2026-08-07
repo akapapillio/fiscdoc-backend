@@ -10,14 +10,20 @@ import { randomUUID } from 'crypto';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { QueryDocumentDto } from './dto/query-document.dto';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
 
-  constructor(@Inject('DATABASE_CONNECTION') private readonly db: Pool) {}
+  constructor(
+    @Inject('DATABASE_CONNECTION') private readonly db: Pool,
+    private readonly auditService: AuditService,
+  ) {}
 
-  /**
+  /** 
+   * @param auditService
+   * 
    * Crée un nouveau document en base de données.
    * @param createDocumentDto Les données du document.
    * @param authorId L'ID de l'auteur (récupéré depuis le token API).
@@ -39,6 +45,11 @@ export class DocumentsService {
       'INSERT INTO documents (id, title, category_id, html_content, status, author_id) VALUES (?, ?, ?, ?, ?, ?)',
       [document.id, document.title, document.category_id, document.html_content, document.status, document.author_id],
     );
+
+    await this.auditService.logAction(authorId, 'CREATE_DOCUMENT', {
+      documentId: id,
+      title: document.title,
+    });
 
     this.logger.log(`Document créé avec l'ID : ${id}`);
     return this.findOne(id);
@@ -93,43 +104,38 @@ export class DocumentsService {
    * @param authorId L'ID de l'utilisateur qui effectue la mise à jour (provient du guard).
    */
   async update(doc_id: string, updateDocumentDto: UpdateDocumentDto, authorId: string): Promise<any> {
-    const { title, category_id, html_content, status } = updateDocumentDto;
-    const fieldsToUpdate: string[] = [];
-    const values: any[] = [];
+    // 1. Vérifier que le document existe avant de tenter la mise à jour
+    await this.findOne(doc_id);
 
-    if (title !== undefined) {
-      fieldsToUpdate.push('title = ?');
-      values.push(title);
+    const fields = Object.keys(updateDocumentDto);
+    // Si le corps de la requête est vide, on ne fait rien et on retourne le document actuel.
+    if (fields.length === 0) {
+      return this.findOne(doc_id);
     }
-    if (category_id !== undefined) {
-      fieldsToUpdate.push('category_id = ?');
-      values.push(category_id);
-    }
-    if (html_content !== undefined) {
-      fieldsToUpdate.push('html_content = ?');
-      values.push(html_content);
-    }
-    if (status !== undefined) {
-      fieldsToUpdate.push('status = ?');
-      values.push(status);
-    }
+    
+    // 2. Construire la requête de mise à jour dynamiquement
+    const updateFields = Object.entries(updateDocumentDto)
+      .filter(([, value]) => value !== undefined);
 
-    if (fieldsToUpdate.length === 0) {
-      this.logger.warn(`No fields provided for updating document with ID ${doc_id}.`);
-      return { message: 'No fields to update.' };
-    }
+    const setClause = updateFields.map(([key]) => `\`${key}\` = ?`).join(', ');
+    const params = [...updateFields.map(([, value]) => value), authorId, doc_id];
 
-    const query = `UPDATE \`documents\` SET ${fieldsToUpdate.join(', ')} WHERE id = ? AND author_id = ?`;
-    values.push(doc_id);
-    values.push(authorId);
-
-    const [result] = await this.db.execute(query, values);
+    const query = `UPDATE \`documents\` SET ${setClause}, \`author_id\` = ?, \`version\` = \`version\` + 1 WHERE id = ?`;
+    const [result] = await this.db.execute(query, params);
 
     if ((result as any).affectedRows === 0) {
-      throw new NotFoundException(`Document with ID "${doc_id}" not found or you are not authorized to update it.`);
+      // Ce cas est peu probable grâce au findOne() initial, mais c'est une sécurité supplémentaire.
+      throw new NotFoundException(`Le document avec l'ID "${doc_id}" n'a pas été trouvé.`);
     }
 
-    this.logger.log(`Document "${doc_id}" updated by author "${authorId}".`);
-    return { id: doc_id, ...updateDocumentDto, author_id: authorId, message: 'Document updated successfully.' };
+    // 3. Journaliser l'action d'audit
+    await this.auditService.logAction(authorId, 'UPDATE_DOCUMENT', {
+      documentId: doc_id,
+      fields: Object.keys(updateDocumentDto),
+    });
+
+    this.logger.log(`Document mis à jour avec l'ID : ${doc_id}`);
+    // 4. Retourner l'entité complète et à jour
+    return this.findOne(doc_id);
   }
 }

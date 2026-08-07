@@ -5,6 +5,7 @@ import { DatabaseModule } from './common/database/database.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -18,6 +19,8 @@ import { DocumentsModule } from './modules/documents/documents.module';
     ApiKeysModule,
     CategoriesModule,
     DocumentsModule,
+    // 4. Importe le module d'audit (global)
+    AuditModule,
   ],
   controllers: [AppController], // <-- C'est ICI qu'il fallait l'ajouter pour exposer l'endpoint !
 })
