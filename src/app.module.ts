@@ -6,6 +6,8 @@ import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { ChatModule } from './modules/chat/chat.module';
+import { DossierModule } from './dossier/dossier/dossier.module';
 
 @Module({
   imports: [
@@ -15,12 +17,14 @@ import { AuditModule } from './modules/audit/audit.module';
     }),
     // 2. Importe le module de base de données
     DatabaseModule,
-    // 3. Importe le module de gestion des clés d'API
     ApiKeysModule,
     CategoriesModule,
     DocumentsModule,
-    // 4. Importe le module d'audit (global)
     AuditModule,
+    ChatModule,
+    DossierModule,
+    
+
   ],
   controllers: [AppController], // <-- C'est ICI qu'il fallait l'ajouter pour exposer l'endpoint !
 })
