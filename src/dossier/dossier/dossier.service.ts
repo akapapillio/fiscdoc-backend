@@ -165,4 +165,58 @@ export class DossierService {
     return scopes.length > 0;
   }
 
+  // --- ÉTAPE 7 : TRANSFÉRER UN DOSSIER ---
+  async transfer(id: number, dto: TransferDossierDto, employeeId: number) {
+    // 1. Récupérer l'état actuel du dossier
+    const dossier = await this.findOne(id);
+    if (!dossier) throw new Error('Dossier introuvable');
+
+    const sourceDivisionId = dossier.current_division_id;
+    const previousStatus = dossier.status;
+
+    // 2. Vérifier les droits de déplacement
+    const canMove = await this.checkVisibility(sourceDivisionId, dto.destination_division_id);
+    if (!canMove) {
+      throw new Error("Règle de visibilité : transfert non autorisé vers cette division.");
+    }
+
+    // 3. Exécuter la transaction SQL
+    const connection = await this.db2.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      // Mise à jour du dossier
+      await connection.query(
+        'UPDATE dossiers SET current_division_id = ?, status = ? WHERE id = ?',
+        [dto.destination_division_id, dto.new_status, id]
+      );
+
+      // Création de l'historique (Action_type 2 = TRANSFERT)
+      await connection.query(
+        `INSERT INTO dossier_movements 
+        (dossier_id, source_division_id, destination_division_id, employee_id, action_type_id, previous_status, new_status, comment) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          sourceDivisionId,
+          dto.destination_division_id,
+          employeeId,
+          2, // TRANSFERT
+          previousStatus,
+          dto.new_status,
+          dto.comment || null
+        ]
+      );
+
+      await connection.commit();
+      return { message: 'Dossier transféré avec succès' };
+
+    } catch (error) {
+      await connection.rollback();
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error('Erreur lors du transfert : ' + errorMessage);
+    } finally {
+      connection.release();
+    }
+  }
 }
