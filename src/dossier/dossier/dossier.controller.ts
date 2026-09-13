@@ -1,4 +1,4 @@
-import { Controller, Get , Post , Body  } from '@nestjs/common';
+import { Controller, Get , Post , Body, Query, Param, ParseIntPipe  } from '@nestjs/common';
 import { DossierService } from './dossier.service';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 
@@ -19,5 +19,22 @@ export class DossierController {
       recu: dto
     };
   }
+
+  @Get()
+  async findAll(
+    @Query('divisionId') divisionId?: string,
+    @Query('status') status?: string,
+  ) {
+    // Si divisionId est fourni dans l'URL, on le convertit en nombre
+    const parsedDivisionId = divisionId ? parseInt(divisionId, 10) : undefined;
+    
+    return this.dossierService.findAll(parsedDivisionId, status);
+}
+
+@Get(':id')
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.dossierService.findOne(id);
+  }
+
 }
 
