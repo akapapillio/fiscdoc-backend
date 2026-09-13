@@ -1,6 +1,7 @@
 import { Injectable, Inject, InternalServerErrorException } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { CreateDossierDto } from './dto/create-dossier.dto';
+import { TransferDossierDto } from './dto/transfer-dossier.dto';
 
 @Injectable()
 export class DossierService {
@@ -127,6 +128,41 @@ export class DossierService {
       message: 'Dossier mis à jour avec succès', 
       id 
     };
+  }
+
+
+
+
+  // --- MOTEUR DE RÈGLES ---
+  private async checkVisibility(sourceDivisionId: number, targetDivisionId: number): Promise<boolean> {
+    // 1. Est-ce qu'une exception autorise ou bloque ce mouvement spécifique ?
+    const [exceptions]: any = await this.db2.query(
+      'SELECT is_allowed FROM division_visibility_exceptions WHERE source_division_id = ? AND target_division_id = ?',
+      [sourceDivisionId, targetDivisionId]
+    );
+    if (exceptions.length > 0) return !!exceptions[0].is_allowed;
+
+    // 2. Quel est le niveau de la division source ?
+    const [divisions]: any = await this.db2.query(
+      `SELECT dl.sees_all, d.level_id 
+       FROM divisions d 
+       JOIN division_levels dl ON d.level_id = dl.id 
+       WHERE d.id = ?`,
+      [sourceDivisionId]
+    );
+    if (divisions.length === 0) return false;
+
+    const { sees_all, level_id } = divisions[0];
+
+    // 3. Si le niveau permet de tout voir (ex: Direction)
+    if (sees_all) return true;
+
+    // 4. Sinon, on vérifie la portée de visibilité (scope)
+    const [scopes]: any = await this.db2.query(
+      'SELECT id FROM division_visibility_scope WHERE level_id = ? AND target_division_id = ?',
+      [level_id, targetDivisionId]
+    );
+    return scopes.length > 0;
   }
 
 }
