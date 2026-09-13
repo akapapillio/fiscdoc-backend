@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+// import { ValidationPipe } from '@nestjs/common';   // Activation de la validation globale (DTOs) --- ///////////////////////////
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -11,6 +12,12 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-api-secret'],
     credentials: true,
   });
+
+  // Activation de la validation globale (DTOs) --- ///////////////////////////
+  // app.useGlobalPipes(new ValidationPipe({
+  //   whitelist: true, // Supprime les champs non déclarés dans le DTO
+  //   forbidNonWhitelisted: true, // Rejette la requête si des champs intrus sont présents (optionnel)
+  // }));
 
   await app.listen(3000);
 }
