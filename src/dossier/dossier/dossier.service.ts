@@ -108,4 +108,25 @@ export class DossierService {
     }
   }
 
+  //  Mettre à jour le contenu JSON d'un dossier
+  async update(id: number, dto: any) { // Remplacez any par UpdateDossierDto si vous l'importez
+    // 1. On vérifie que le dossier existe
+    const existingDossier = await this.findOne(id);
+    if (!existingDossier) {
+      throw new Error('Dossier introuvable'); 
+      // Si vous avez importé NotFoundException de @nestjs/common, c'est encore mieux !
+    }
+
+    // 2. On effectue la mise à jour
+    await this.db2.query(
+      'UPDATE dossiers SET data = ? WHERE id = ?',
+      [JSON.stringify(dto.data), id]
+    );
+
+    return { 
+      message: 'Dossier mis à jour avec succès', 
+      id 
+    };
+  }
+
 }

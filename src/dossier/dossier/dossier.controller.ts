@@ -1,6 +1,7 @@
-import { Controller, Get , Post , Body, Query, Param, ParseIntPipe  } from '@nestjs/common';
+import { Controller, Get , Post , Body, Query, Param, ParseIntPipe, Patch  } from '@nestjs/common';
 import { DossierService } from './dossier.service';
 import { CreateDossierDto } from './dto/create-dossier.dto';
+import { UpdateDossierDto } from './dto/update-dossier.dto';
 
 @Controller('dossiers')
 export class DossierController {
@@ -33,6 +34,14 @@ export class DossierController {
       const currentEmployeeId = 1; 
 
       return this.dossierService.create(createDossierDto, currentEmployeeId);
+    }
+
+    @Patch(':id')
+    async update(
+      @Param('id', ParseIntPipe) id: number,
+      @Body() updateDossierDto: UpdateDossierDto
+    ) {
+      return this.dossierService.update(id, updateDossierDto);
     }
 }
 
