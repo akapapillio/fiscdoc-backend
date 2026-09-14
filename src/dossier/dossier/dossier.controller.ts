@@ -1,7 +1,8 @@
-import { Controller, Get , Post , Body, Query, Param, ParseIntPipe, Patch  } from '@nestjs/common';
+import { Controller, Get , Post , Body, Query, Param, ParseIntPipe, Patch, BadRequestException  } from '@nestjs/common';
 import { DossierService } from './dossier.service';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
+import { TransferDossierDto } from './dto/transfer-dossier.dto';
 
 @Controller('dossiers')
 export class DossierController {
@@ -43,5 +44,34 @@ export class DossierController {
     ) {
       return this.dossierService.update(id, updateDossierDto);
     }
+
+    // 7 Transfer  ---
+  @Post(':id/transfer')
+  async transfer(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() transferDossierDto: TransferDossierDto
+  ) {
+    const currentEmployeeId = 1; // Toujours simulé pour le moment
+    
+    // Si la logique renvoie une erreur (ex: transfert non autorisé), NestJS la gérera
+  try {
+      return await this.dossierService.transfer(id, transferDossierDto, currentEmployeeId);
+    } catch (error) {
+      // On retourne une erreur propre au front-end (Code 400 Bad Request)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(errorMessage); 
+    }
+  }
+
+  // --- ETAPE 8 --- historique des mvm
+  @Get(':id/movements')
+  async getHistory(@Param('id', ParseIntPipe) id: number) {
+    try {
+      return await this.dossierService.getHistory(id);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(errorMessage);
+    }
+  }
 }
 
