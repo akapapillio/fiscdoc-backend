@@ -1,8 +1,9 @@
-import { Controller, Get , Post , Body, Query, Param, ParseIntPipe, Patch, BadRequestException  } from '@nestjs/common';
+import { Controller, Get , Post , Body, Query, Param, ParseIntPipe, Patch,Request , BadRequestException  } from '@nestjs/common';
 import { DossierService } from './dossier.service';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { TransferDossierDto } from './dto/transfer-dossier.dto';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @Controller('dossiers')
 export class DossierController {
@@ -28,12 +29,13 @@ export class DossierController {
     async findOne(@Param('id', ParseIntPipe) id: number) {
       return this.dossierService.findOne(id);
     }
+
   @Post()
-    async create(@Body() createDossierDto: CreateDossierDto) {
+    async create(@Body() createDossierDto: CreateDossierDto ,@Request() req) {
       // Note temporaire : On "simule" que l'agent connecté est l'employé ID 1.
       // Plus tard, on récupérera cet ID via le token de sécurité (@CurrentUser() ou Request).
-      const currentEmployeeId = 1; 
-
+      // const currentEmployeeId = 1; 
+      const currentEmployeeId = req.user.sub;
       return this.dossierService.create(createDossierDto, currentEmployeeId);
     }
 
@@ -49,9 +51,11 @@ export class DossierController {
   @Post(':id/transfer')
   async transfer(
     @Param('id', ParseIntPipe) id: number,
-    @Body() transferDossierDto: TransferDossierDto
+    @Body() transferDossierDto: TransferDossierDto,
+    @Request() req
   ) {
-    const currentEmployeeId = 1; // Toujours simulé pour le moment
+    // const currentEmployeeId = 1; // Toujours simulé pour le moment
+    const currentEmployeeId = req.user.sub;
     
     // Si la logique renvoie une erreur (ex: transfert non autorisé), NestJS la gérera
   try {
