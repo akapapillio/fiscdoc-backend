@@ -14,7 +14,7 @@ export class DossierService {
     const [rows] = await this.db2.query('SELECT 1 as is_connected');
     return rows;
   }
-// ÉTAPE 3 : Lister les dossiers avec filtres optionnels
+// Lister les dossiers avec filtres optionnels
   async findAll(divisionId?: number, status?: string) {
     let sql = 'SELECT * FROM dossiers WHERE 1=1';
     const params: any[] = [];
@@ -219,4 +219,22 @@ export class DossierService {
       connection.release();
     }
   }
+
+// ETAPE 8  Récupérer l'historique d'un dossier
+  async getHistory(dossierId: number) {
+    const dossier = await this.findOne(dossierId);
+    if (!dossier) throw new Error('Dossier introuvable');
+
+    const [movements] = await this.db2.query(
+      `SELECT * 
+       FROM dossier_movements 
+       WHERE dossier_id = ? 
+       ORDER BY action_date DESC`, // <-- Utilisation de 'action_date' qui existe dans votre table
+      [dossierId]
+    );
+
+    return movements;
+  }
+
+
 }

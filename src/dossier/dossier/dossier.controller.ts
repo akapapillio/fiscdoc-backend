@@ -45,7 +45,7 @@ export class DossierController {
       return this.dossierService.update(id, updateDossierDto);
     }
 
-    //  ÉTAPE 7 Transfer  ---
+    // 7 Transfer  ---
   @Post(':id/transfer')
   async transfer(
     @Param('id', ParseIntPipe) id: number,
@@ -60,6 +60,17 @@ export class DossierController {
       // On retourne une erreur propre au front-end (Code 400 Bad Request)
       const errorMessage = error instanceof Error ? error.message : String(error);
       throw new BadRequestException(errorMessage); 
+    }
+  }
+
+  // --- ETAPE 8 --- historique des mvm
+  @Get(':id/movements')
+  async getHistory(@Param('id', ParseIntPipe) id: number) {
+    try {
+      return await this.dossierService.getHistory(id);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(errorMessage);
     }
   }
 }
