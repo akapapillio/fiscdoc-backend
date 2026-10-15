@@ -1,4 +1,4 @@
-import { Injectable, Inject, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Inject, InternalServerErrorException} from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { TransferDossierDto } from './dto/transfer-dossier.dto';
@@ -48,63 +48,60 @@ export class DossierService {
   }
 
   // ÉTAPE 5 : Créer un dossier (Transaction)
-  async create(dto: CreateDossierDto, employeeId: number) {
+async create(createDossierDto: CreateDossierDto, employeeId: number) {
+    // Notez qu'on ne déstructure plus le reference_code ici, on le génère !
+    const { dossier_type_id, current_division_id, data } = createDossierDto;
+
     const connection = await this.db2.getConnection();
+    await connection.beginTransaction();
 
     try {
-      await connection.beginTransaction();
+      // --- 1. GÉNÉRATEUR AUTOMATIQUE DE RÉFÉRENCE ---
+      const year = new Date().getFullYear();
+      
+      // On compte le nombre de dossiers existants pour cette année
+      const [countRows]: any = await connection.query(
+        `SELECT COUNT(*) as total FROM dossiers WHERE reference_code LIKE ?`,
+        [`DOS-${year}-%`]
+      );
+      
+      // On formate le numéro avec des zéros devant (ex: 0001, 0002)
+      const sequenceNumber = countRows[0].total + 1;
+      const sequenceString = sequenceNumber.toString().padStart(4, '0');
+      
+      const generatedReference = `DOS-${year}-${sequenceString}`;
+      // -----------------------------------------------
 
-      // 1. Création du dossier
+      // --- 2. CRÉATION DU DOSSIER ---
+      // On ajoute created_by_employee_id dans la requête SQL
       const [dossierResult]: any = await connection.query(
-        `INSERT INTO dossiers 
-        (reference_code, dossier_type_id, status, current_division_id, created_by_employee_id, data) 
-        VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          dto.reference_code,
-          dto.dossier_type_id,
-          'ouvert', // Statut par défaut à la création
-          dto.current_division_id,
-          employeeId,
-          JSON.stringify(dto.data), // MySQL nécessite une string pour insérer dans un champ JSON
-        ]
+        `INSERT INTO dossiers (reference_code, dossier_type_id, current_division_id, created_by_employee_id, data) 
+         VALUES (?, ?, ?, ?, ?)`,
+        [generatedReference, dossier_type_id, current_division_id, employeeId, JSON.stringify(data)]
       );
 
-      const newDossierId = dossierResult.insertId;
+      const dossierId = dossierResult.insertId;
 
-      // 2. Inscription dans le journal des mouvements
-      // L'action_type_id 1 correspond à 'CREATION' dans notre jeu de données
+// --- 3. TRAÇABILITÉ (HISTORIQUE) ---
+      // On utilise les bons noms de colonnes et on renseigne le status obligatoire
+      // action_type_id = 1 correspond à 'CREATION' dans votre table action_types
       await connection.query(
-        `INSERT INTO dossier_movements 
-        (dossier_id, destination_division_id, employee_id, action_type_id, new_status, comment) 
-        VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          newDossierId,
-          dto.current_division_id, // À la création, la division cible est la division initiale
-          employeeId,
-          1, // CREATION
-          'ouvert',
-          'Création initiale du dossier',
-        ]
+        `INSERT INTO dossier_movements (dossier_id, source_division_id, destination_division_id, employee_id, action_type_id, new_status)
+         VALUES (?, NULL, ?, ?, ?, ?)`,
+        [dossierId, current_division_id, employeeId, 1, 'ouvert']
       );
 
-      // On valide la transaction si tout s'est bien passé
       await connection.commit();
-      
-      return { 
-        id: newDossierId, 
-        message: 'Dossier créé avec succès et historisé' 
-      };
 
+      return { 
+        message: 'Dossier créé avec succès', 
+        dossierId, 
+        reference_code: generatedReference // On renvoie la référence générée au front-end !
+      };
     } catch (error) {
-      // On annule la transaction
       await connection.rollback();
-      
-      // On extrait le message proprement pour satisfaire TypeScript
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      throw new InternalServerErrorException('Erreur lors de la création du dossier : ' + errorMessage);
-      
+      throw error;
     } finally {
-      // Très important : on libère la connexion pour qu'elle retourne dans le pool
       connection.release();
     }
   }
@@ -235,6 +232,236 @@ export class DossierService {
 
     return movements;
   }
+
+// On ajoute les paramètres optionnels search et date
+  async getDivisionHistory(divisionId: number, search?: string, date?: string) {
+    const connection = await this.db2.getConnection();
+    try {
+      // La base de la requête SQL
+      let sql = `
+        SELECT 
+          dm.id, 
+          d.reference_code AS reference, 
+          act.code AS action, 
+          dm.action_date AS date, 
+          CONCAT(emp.first_name, ' ', emp.last_name) AS agent, 
+          IFNULL(dm.comment, act.label) AS description,
+          curr_div.name AS currentDivision
+         FROM dossier_movements dm
+         JOIN dossiers d ON dm.dossier_id = d.id
+         JOIN action_types act ON dm.action_type_id = act.id
+         JOIN employees emp ON dm.employee_id = emp.id
+         JOIN divisions curr_div ON d.current_division_id = curr_div.id
+         WHERE (dm.source_division_id = ? OR dm.destination_division_id = ?)
+      `;
+      const params: any[] = [divisionId, divisionId];
+
+      // Si l'agent a tapé une recherche, on filtre sur la référence
+      if (search) {
+        sql += ` AND d.reference_code LIKE ?`;
+        params.push(`%${search}%`);
+      }
+
+      // Si l'agent a choisi une date, on filtre sur la date d'action
+      if (date) {
+        // La fonction DATE() de MySQL ignore l'heure et compare juste le jour
+        sql += ` AND DATE(dm.action_date) = ?`;
+        params.push(date); 
+      }
+
+      sql += ` ORDER BY dm.action_date DESC LIMIT 50`;
+
+      const [rows] = await connection.query(sql, params);
+      return rows;
+    } finally {
+      connection.release();
+    }
+  }
+
+  // Récupérer la file d'attente d'une division
+  async getDossiersByDivision(divisionId: number) {
+    const connection = await this.db2.getConnection();
+    try {
+      // On fait une jointure pour récupérer le vrai nom du type de dossier
+      const [rows] = await connection.query(
+        `SELECT 
+          d.id, 
+          d.reference_code AS reference, 
+          dt.name AS type, 
+          d.created_at AS date, 
+          d.status 
+         FROM dossiers d
+         JOIN dossier_types dt ON d.dossier_type_id = dt.id
+         WHERE d.current_division_id = ?
+         ORDER BY d.created_at DESC`,
+        [divisionId]
+      );
+      return rows;
+    } finally {
+      connection.release();
+    }
+  }
+
+  // Récupérer le circuit complet d'un dossier
+  async getDossierCircuit(dossierId: number) {
+    const connection = await this.db2.getConnection();
+    try {
+      const [rows] = await connection.query(
+        `SELECT 
+          dm.id, 
+          dm.action_date AS date, 
+          act.label AS action, 
+          src.name AS from_division, 
+          dest.name AS to_division, 
+          CONCAT(emp.first_name, ' ', emp.last_name) AS agent,
+          dm.comment,
+          dm.new_status AS status
+         FROM dossier_movements dm
+         JOIN action_types act ON dm.action_type_id = act.id
+         LEFT JOIN divisions src ON dm.source_division_id = src.id
+         JOIN divisions dest ON dm.destination_division_id = dest.id
+         JOIN employees emp ON dm.employee_id = emp.id
+         WHERE dm.dossier_id = ?
+         ORDER BY dm.action_date ASC`, // ASC pour l'ordre chronologique (du plus ancien au plus récent)
+        [dossierId]
+      );
+      return rows;
+    } finally {
+      connection.release();
+    }
+  }
+  
+  // Recherche multicritère de dossiers
+  async searchDossiers(filters: { reference?: string; status?: string; type_id?: string; date?: string; division_id?: string ; objet?: string}) {
+    const connection = await this.db2.getConnection();
+    try {
+      // Le "WHERE 1=1" est une astuce classique pour pouvoir ajouter des "AND" dynamiquement
+      let sql = `
+        SELECT 
+          d.id, 
+          d.reference_code AS reference, 
+          dt.name AS type, 
+          d.status, 
+          d.created_at AS date,
+          divi.name AS current_division
+        FROM dossiers d
+        JOIN dossier_types dt ON d.dossier_type_id = dt.id
+        JOIN divisions divi ON d.current_division_id = divi.id
+        WHERE 1=1 
+      `;
+      const params: any[] = [];
+
+      if (filters.reference) {
+        sql += ` AND d.reference_code LIKE ?`;
+        params.push(`%${filters.reference}%`);
+      }
+      if (filters.status) {
+        sql += ` AND d.status = ?`;
+        params.push(filters.status);
+      }
+      if (filters.type_id) {
+        sql += ` AND d.dossier_type_id = ?`;
+        params.push(filters.type_id);
+      }
+      if (filters.date) {
+        sql += ` AND DATE(d.created_at) = ?`;
+        params.push(filters.date);
+      }
+      if (filters.division_id) {
+        sql += ` AND d.current_division_id = ?`;
+        params.push(filters.division_id);
+      }
+     // NOUVEAU : Recherche à l'intérieur du JSON
+      if (filters.objet) {
+        // d.data->>'$.objet' va chercher la clé "objet" dans le JSON
+        sql += ` AND d.data->>'$.objet' LIKE ?`;
+        params.push(`%${filters.objet}%`);
+      }
+
+      sql += ` ORDER BY d.created_at DESC LIMIT 100`; // Limite de sécurité
+
+      const [rows] = await connection.query(sql, params);
+      return rows;
+    } finally {
+      connection.release();
+    }
+  }
+
+  // Récupérer les détails complets d'un dossier
+  async getDossierDetails(id: number) {
+    const connection = await this.db2.getConnection();
+    try {
+      const [rows]: any = await connection.query(
+        `SELECT 
+          d.id, 
+          d.reference_code AS reference, 
+          dt.name AS type, 
+          d.status, 
+          d.data,
+          d.created_at
+         FROM dossiers d
+         JOIN dossier_types dt ON d.dossier_type_id = dt.id
+         WHERE d.id = ?`,
+        [id]
+      );
+
+      if (rows.length === 0) {
+        throw new Error("Dossier introuvable");
+      }
+
+      return rows[0]; // On retourne l'objet unique
+    } finally {
+      connection.release();
+    }
+  }
+
+async updateData(id: number, newData: any) {
+    const connection = await this.db2.getConnection();
+    try {
+      const jsonString = JSON.stringify(newData);
+
+      const [result] = await connection.query(
+        `UPDATE dossiers SET data = ? WHERE id = ?`,
+        [jsonString, id]
+      );
+
+      // CORRECTION ICI : On dit à TypeScript de ne pas bloquer l'analyse de cette variable
+      if ((result as any).affectedRows === 0) {
+        throw new Error("Dossier introuvable");
+      }
+
+      return { message: 'Bandeau mis à jour avec succès' };
+    } catch (error) {
+      console.error("Erreur SQL lors de la mise à jour du bandeau :", error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  // à testena ny latance apres plusieur millier de dossier
+  async getDistinctMinisteres(): Promise<string[]> {
+  const connection = await this.db2.getConnection();
+  try {
+    // Extraction MySQL du champ 'ministere' contenu dans le JSON 'data'
+    const [rows] = await connection.query(`
+      SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(data, '$.ministere')) AS ministere
+      FROM dossiers
+      WHERE JSON_EXTRACT(data, '$.ministere') IS NOT NULL
+        AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.ministere')) != ''
+      ORDER BY ministere ASC
+    `);
+
+    return (rows as any[])
+      .map(r => r.ministere)
+      .filter(Boolean);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des ministères :", error);
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
 
 
 }
