@@ -1,10 +1,11 @@
-import { Injectable, Inject, InternalServerErrorException} from '@nestjs/common';
+import { Injectable, Inject, InternalServerErrorException, Logger} from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { TransferDossierDto } from './dto/transfer-dossier.dto';
 
 @Injectable()
 export class DossierService {
+  private readonly logger = new Logger(DossierService.name);
   constructor(
     @Inject('DATABASE_CONNECTION2') private readonly db2: mysql.Pool,
   ) {}
@@ -14,6 +15,74 @@ export class DossierService {
     const [rows] = await this.db2.query('SELECT 1 as is_connected');
     return rows;
   }
+
+  // Méthode dédiée à l'envoi sécurisé vers Google Sheets
+  async syncToGoogleSheet(dossierPayload: {
+    id: number;
+    reference_code: string;
+    ministere?: string;
+    objet?: string;
+    ref_ministere?: any;
+    created_at?: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    const webhookUrl = process.env.GOOGLE_SHEET_WEBHOOK_URL;
+
+    if (!webhookUrl) {
+      const msg = 'Variable GOOGLE_SHEET_WEBHOOK_URL non définie dans le .env';
+      this.logger.warn(msg);
+      return { success: false, error: msg };
+    }
+
+    // Timeout de 8 secondes avec AbortController
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...dossierPayload,
+          created_at: dossierPayload.created_at || new Date().toISOString(),
+        }),
+        redirect: 'follow', // Crucial pour Google Apps Script (redirection 302 vers le résultat d'exécution)
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        const msg = `Erreur HTTP Google Apps Script : ${response.status} ${response.statusText} ${errorText}`;
+        this.logger.error(msg);
+        return { success: false, error: msg };
+      }
+
+      // Vérifie le contenu JSON renvoyé par votre fonction doPost
+      const resJson = await response.json().catch(() => null);
+      if (resJson && resJson.status === 'error') {
+        const msg = `Google Script Error: ${resJson.message}`;
+        this.logger.error(msg);
+        return { success: false, error: msg };
+      }
+
+      this.logger.log(`Dossier #${dossierPayload.id} synchronisé avec succès sur Google Sheets.`);
+      return { success: true };
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+
+      let msg = error.message;
+      if (error.name === 'AbortError') {
+        msg = 'Délai dépassé (Timeout > 8s) vers Google Apps Script';
+      } else if (error.code === 'ENOTFOUND' || error.message.includes('fetch failed')) {
+        msg = 'Problème de connexion réseau / Internet inaccessible';
+      }
+
+      this.logger.error(`Échec synchronisation Google Sheet pour le dossier #${dossierPayload.id} : ${msg}`);
+      return { success: false, error: msg };
+    }
+  }
+
 // Lister les dossiers avec filtres optionnels
   async findAll(divisionId?: number, status?: string) {
     let sql = 'SELECT * FROM dossiers WHERE 1=1';
@@ -47,9 +116,7 @@ export class DossierService {
     return rows.length > 0 ? rows[0] : null;
   }
 
-  // ÉTAPE 5 : Créer un dossier (Transaction)
-async create(createDossierDto: CreateDossierDto, employeeId: number) {
-    // Notez qu'on ne déstructure plus le reference_code ici, on le génère !
+  async create(createDossierDto: CreateDossierDto, employeeId: number) {
     const { dossier_type_id, current_division_id, data } = createDossierDto;
 
     const connection = await this.db2.getConnection();
@@ -59,45 +126,62 @@ async create(createDossierDto: CreateDossierDto, employeeId: number) {
       // --- 1. GÉNÉRATEUR AUTOMATIQUE DE RÉFÉRENCE ---
       const year = new Date().getFullYear();
       
-      // On compte le nombre de dossiers existants pour cette année
       const [countRows]: any = await connection.query(
         `SELECT COUNT(*) as total FROM dossiers WHERE reference_code LIKE ?`,
         [`DOS-${year}-%`]
       );
       
-      // On formate le numéro avec des zéros devant (ex: 0001, 0002)
       const sequenceNumber = countRows[0].total + 1;
       const sequenceString = sequenceNumber.toString().padStart(4, '0');
-      
       const generatedReference = `DOS-${year}-${sequenceString}`;
-      // -----------------------------------------------
 
       // --- 2. CRÉATION DU DOSSIER ---
-      // On ajoute created_by_employee_id dans la requête SQL
       const [dossierResult]: any = await connection.query(
-        `INSERT INTO dossiers (reference_code, dossier_type_id, current_division_id, created_by_employee_id, data) 
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO dossiers (reference_code, dossier_type_id, current_division_id, created_by_employee_id, data, saved_drive) 
+        VALUES (?, ?, ?, ?, ?, 0)`,
         [generatedReference, dossier_type_id, current_division_id, employeeId, JSON.stringify(data)]
       );
 
       const dossierId = dossierResult.insertId;
 
-// --- 3. TRAÇABILITÉ (HISTORIQUE) ---
-      // On utilise les bons noms de colonnes et on renseigne le status obligatoire
-      // action_type_id = 1 correspond à 'CREATION' dans votre table action_types
+      // --- 3. TRAÇABILITÉ (HISTORIQUE) ---
       await connection.query(
         `INSERT INTO dossier_movements (dossier_id, source_division_id, destination_division_id, employee_id, action_type_id, new_status)
-         VALUES (?, NULL, ?, ?, ?, ?)`,
+        VALUES (?, NULL, ?, ?, ?, ?)`,
         [dossierId, current_division_id, employeeId, 1, 'ouvert']
       );
 
+      // On valide d'abord dans MySQL pour être sûr que le dossier existe localement
       await connection.commit();
 
+      // --- 4. SAUVEGARDE DRIVE AVEC ATTENTE DU RÉSULTAT ---
+      const driveResult = await this.syncToGoogleSheet({
+        id: dossierId,
+        reference_code: generatedReference,
+        ministere: data?.ministere,
+        objet: data?.objet,
+        ref_ministere: data?.ref_ministere,
+      });
+
+      // Si Google confirme la réception, on met à jour la base
+      if (driveResult.success) {
+        await connection.query(`UPDATE dossiers SET saved_drive = 1 WHERE id = ?`, [dossierId]);
+      }
+
+      // --- 5. RÉPONSE AU FRONTEND (avec le statut Drive) ---
       return { 
         message: 'Dossier créé avec succès', 
         dossierId, 
-        reference_code: generatedReference // On renvoie la référence générée au front-end !
+        reference_code: generatedReference,
+        backup: {
+          saved_drive: driveResult.success,
+          status: driveResult.success ? 'synced' : 'pending_offline',
+          notice: driveResult.success 
+            ? 'Dossier sauvegardé en direct sur le Drive miroir.' 
+            : 'Dossier enregistré localement. La sauvegarde Drive sera synchronisée ultérieurement.'
+        }
       };
+
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -462,6 +546,31 @@ async updateData(id: number, newData: any) {
     connection.release();
   }
 }
+
+// Traitement asynchrone en tâche de fond pour mettre à jour saved_drive dans MySQL
+private async handleBackgroundDriveSync(dossierId: number, payload: any) {
+  const res = await this.syncToGoogleSheet(payload);
+
+  if (res.success) {
+    let connection;
+    try {
+      connection = await this.db2.getConnection();
+      await connection.query(
+        `UPDATE dossiers SET saved_drive = 1 WHERE id = ?`,
+        [dossierId]
+      );
+    } catch (dbErr) {
+      console.error(`Erreur mise à jour saved_drive pour #${dossierId} :`, dbErr);
+    } finally {
+      if (connection) connection.release();
+    }
+  } else {
+    // Échec de connexion ou timeout : saved_drive reste à 0 (défaut)
+    console.warn(`[Drive Sync] Dossier #${dossierId} non synchronisé (hors-ligne ou indisponible) :`, res.error);
+  }
+}
+
+
 
 
 }
