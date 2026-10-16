@@ -8,6 +8,9 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { DossierModule } from './dossier/dossier/dossier.module';
+import { AuthModule } from './dossier/auth/auth.module';
+import { DivisionModule } from './dossier/division/division.module';
+import { EmployeeModule } from './dossier/employee/employee.module';
 
 @Module({
   imports: [
@@ -23,8 +26,10 @@ import { DossierModule } from './dossier/dossier/dossier.module';
     AuditModule,
     ChatModule,
     DossierModule,
+    AuthModule,
+    DivisionModule,
+    EmployeeModule
     
-
   ],
   controllers: [AppController], // <-- C'est ICI qu'il fallait l'ajouter pour exposer l'endpoint !
 })

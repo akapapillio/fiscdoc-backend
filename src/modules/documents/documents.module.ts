@@ -9,5 +9,6 @@ import { AuditModule } from '../audit/audit.module';
   imports: [DatabaseModule, ApiKeysModule, AuditModule],
   controllers: [DocumentsController],
   providers: [DocumentsService],
+  exports: [DocumentsService]
 })
 export class DocumentsModule {}
