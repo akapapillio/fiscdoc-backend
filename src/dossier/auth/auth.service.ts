@@ -11,7 +11,7 @@ export class AuthService {
     private readonly jwtService: JwtService
   ) {}
 
-  // --- POST /auth/login ---
+// --- POST /auth/login ---
   async login(dto: LoginDto) {
     // 1. Chercher l'employé
     const [rows]: any = await this.db2.query(
@@ -24,10 +24,10 @@ export class AuthService {
       throw new UnauthorizedException('Identifiants invalides ou compte inactif');
     }
 
-    // 2. Vérifier le mot de passe 
-    // (Note: dans le jeu d'essai actuel, le mdp est "motdepasse_bidon" en clair. 
-    // À terme, utilisez bcrypt.compare(dto.password, user.password_hash))
-    if (dto.password !== user.password_hash) {
+    // 2. Vérifier le mot de passe avec bcrypt
+    const isPasswordValid = await bcrypt.compare(dto.password, user.password_hash);
+    
+    if (!isPasswordValid) {
       throw new UnauthorizedException('Identifiants invalides');
     }
 
