@@ -1,5 +1,5 @@
-import { Injectable, Inject } from '@nestjs/common';
-// import * as bcrypt from 'bcrypt';
+import { Injectable, Inject, ConflictException, InternalServerErrorException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class EmployeeService {
@@ -36,16 +36,16 @@ export class EmployeeService {
     }
   }
 
-  // 2. CRÉER : Hachage du mot de passe + Création de l'affectation
+// 2. CRÉER : Hachage du mot de passe + Création de l'affectation
   async create(data: any) {
     const connection = await this.db2.getConnection();
     await connection.beginTransaction();
     try {
       // Hachage du mot de passe
       const saltRounds = 10;
-    //   const passwordHash = await bcrypt.hash(data.password, saltRounds);
-         const passwordHash = data.password ;
-      const [empResult] = await connection.query(
+      const passwordHash = await bcrypt.hash(data.password, saltRounds);
+      
+      const [empResult]: any = await connection.query(
         `INSERT INTO employees (first_name, last_name, email, password_hash, matricule, is_active) 
          VALUES (?, ?, ?, ?, ?, ?)`,
         [data.first_name, data.last_name, data.email, passwordHash, data.matricule || null, data.is_active]
@@ -64,10 +64,28 @@ export class EmployeeService {
 
       await connection.commit();
       return { id: newEmpId, message: 'Employé créé avec succès' };
-    } catch (error) {
+      
+    } catch (error: any) {
+      // 1. On annule TOUJOURS la transaction en premier
       await connection.rollback();
-      throw error;
+      
+      // 2. On analyse l'erreur pour renvoyer un message clair au Front
+      if (error.code === 'ER_DUP_ENTRY') {
+        if (error.message.includes('matricule')) {
+          throw new ConflictException("Ce numéro matricule est déjà attribué à un autre employé.");
+        }
+        if (error.message.includes('email')) {
+          throw new ConflictException("Cette adresse email est déjà utilisée.");
+        }
+        throw new ConflictException("Une information unique existe déjà dans le système.");
+      }
+      
+      // 3. Pour toute autre erreur inattendue
+      console.error("Erreur création employé:", error);
+      throw new InternalServerErrorException("Une erreur inattendue est survenue lors de la création.");
+      
     } finally {
+      // On libère la connexion quoi qu'il arrive
       connection.release();
     }
   }
@@ -83,8 +101,8 @@ export class EmployeeService {
 
       // Si l'admin a tapé un nouveau mot de passe, on le hache et on l'ajoute à la requête
       if (data.password && data.password.trim() !== '') {
-        // const passwordHash = await bcrypt.hash(data.password, 10);
-        const passwordHash = data.password ; 
+        const passwordHash = await bcrypt.hash(data.password, 10);
+        // const passwordHash = data.password ; 
         sql += `, password_hash=?`;
         params.push(passwordHash);
       }
